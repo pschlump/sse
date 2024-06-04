@@ -2,7 +2,7 @@
 
 ## Synopsis
 
-SSE is a client/server implementation for Server Sent Events for Golang.
+SSE is a client/server implementation for Server Sent Events for Go(Golang).
 
 ## Build status
 

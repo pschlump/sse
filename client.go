@@ -26,6 +26,7 @@ var (
 	headerRetry = []byte("retry:")
 )
 
+// ClientMaxBufferSize will set the max buffer size on a client to the value 's'.
 func ClientMaxBufferSize(s int) func(c *Client) {
 	return func(c *Client) {
 		c.maxBufferSize = s
