@@ -80,10 +80,16 @@ func (c *Client) Subscribe(stream string, handler func(msg *Event)) error {
 	return c.SubscribeWithContext(context.Background(), stream, handler)
 }
 
-// SubscribeWithContext to a data stream with context
-func (c *Client) SubscribeWithContext(ctx context.Context, stream string, handler func(msg *Event)) error {
+// PJS - xyzzy - add params
+func (c *Client) SubscribeParams(stream string, params []string, handler func(msg *Event)) error {
+	return c.SubscribeWithContextParams(context.Background(), stream, params, handler)
+}
+
+// PJS - xyzzy - add params
+func (c *Client) SubscribeWithContextParams(ctx context.Context, stream string, params []string, handler func(msg *Event)) error {
+
 	operation := func() error {
-		resp, err := c.request(ctx, stream)
+		resp, err := c.request(ctx, stream, params...)
 		if err != nil {
 			return err
 		}
@@ -119,6 +125,50 @@ func (c *Client) SubscribeWithContext(ctx context.Context, stream string, handle
 		err = backoff.RetryNotify(operation, backoff.NewExponentialBackOff(), c.ReconnectNotify)
 	}
 	return err
+}
+
+// SubscribeWithContext to a data stream with context
+func (c *Client) SubscribeWithContext(ctx context.Context, stream string, handler func(msg *Event)) error {
+	return c.SubscribeWithContextParams(context.Background(), stream, []string{}, handler)
+	/*
+		operation := func() error {
+			resp, err := c.request(ctx, stream)
+			if err != nil {
+				return err
+			}
+			if validator := c.ResponseValidator; validator != nil {
+				err = validator(c, resp)
+				if err != nil {
+					return err
+				}
+			} else if resp.StatusCode != 200 {
+				resp.Body.Close()
+				return fmt.Errorf("could not connect to stream: %s", http.StatusText(resp.StatusCode))
+			}
+			defer resp.Body.Close()
+
+			reader := NewEventStreamReader(resp.Body, c.maxBufferSize)
+			eventChan, errorChan := c.startReadLoop(reader)
+
+			for {
+				select {
+				case err = <-errorChan:
+					return err
+				case msg := <-eventChan:
+					handler(msg)
+				}
+			}
+		}
+
+		// Apply user specified reconnection strategy or default to standard NewExponentialBackOff() reconnection method
+		var err error
+		if c.ReconnectStrategy != nil {
+			err = backoff.RetryNotify(operation, c.ReconnectStrategy, c.ReconnectNotify)
+		} else {
+			err = backoff.RetryNotify(operation, backoff.NewExponentialBackOff(), c.ReconnectNotify)
+		}
+		return err
+	*/
 }
 
 // SubscribeChan sends all events to the provided channel
@@ -289,7 +339,7 @@ func (c *Client) OnConnect(fn ConnCallback) {
 	c.connectedcb = fn
 }
 
-func (c *Client) request(ctx context.Context, stream string) (*http.Response, error) {
+func (c *Client) request(ctx context.Context, stream string, params ...string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", c.URL, nil)
 	if err != nil {
 		return nil, err
@@ -300,7 +350,15 @@ func (c *Client) request(ctx context.Context, stream string) (*http.Response, er
 	if stream != "" {
 		query := req.URL.Query()
 		query.Add("stream", stream)
+		for ii := 0; ii < len(params); ii += 2 {
+			if ii+1 < len(params) {
+				query.Add(params[ii], params[ii+1])
+			} else {
+				query.Add(params[ii], "")
+			}
+		}
 		req.URL.RawQuery = query.Encode()
+		fmt.Printf("Request URL -->>%s<<--\n", req.URL.RawQuery)
 	}
 
 	req.Header.Set("Cache-Control", "no-cache")
